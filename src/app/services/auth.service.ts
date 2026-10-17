@@ -13,23 +13,13 @@ import {
   User,
 } from '../models';
 
-// Nombres con los que guardo la sesión en localStorage
-const TOKEN_KEY = 'token';
-const REFRESH_TOKEN_KEY = 'refreshToken';
+// Nombre con el que guardo el usuario en localStorage
 const USER_KEY = 'user';
-
-// Por qué localStorage y no una cookie HttpOnly (está explicado con más detalle en el README):
-// la API devuelve los tokens en el JSON del login, así que el frontend tiene que guardarlos él.
-// localStorage sobrevive a recargar la página y es fácil de entender. Su riesgo es que cualquier
-// script que se ejecute en la página puede leerlo (un ataque XSS). Una cookie HttpOnly no se puede
-// leer desde JavaScript, pero obliga a cambiar el backend y a protegerse de otro ataque (CSRF).
 
 // Al arrancar la app, recupero el usuario que dejó guardado el último login
 function readStoredUser(): User | null {
   const stored = localStorage.getItem(USER_KEY);
-  if (!stored) {
-    return null;
-  }
+  if (!stored) return null;
 
   try {
     return JSON.parse(stored) as User;
@@ -45,8 +35,11 @@ export class AuthService {
   private router = inject(Router);
   private baseUrl = `${environment.apiUrl}/auth`;
 
-  // El usuario con sesión, o null si no hay sesión. Es privado y modificable aquí dentro;
-  // fuera solo se puede leer (asReadonly), así nadie cambia la sesión sin pasar por este servicio
+  // L'access token es guarda NOMÉS en memòria (no a localStorage ni a cap cookie).
+  // Quan es recarrega la pàgina, es recupera fent /auth/refresh.
+  private accessToken = signal<string | null>(null);
+
+  // El usuario se guarda en localStorage solo para saber el nombre y rol sin volver a hacer login
   private currentUser = signal<User | null>(readStoredUser());
   readonly user = this.currentUser.asReadonly();
 
@@ -59,45 +52,66 @@ export class AuthService {
     return this.http.post<RegisterResponse>(`${this.baseUrl}/register`, data);
   }
 
-  /** POST /auth/login. Si va bien, guarda los dos tokens y el usuario */
+  /** POST /auth/login.
+   * Guarda l'access token en memòria i l'usuari a localStorage.
+   * El refresh token el gestiona el servidor via cookie HttpOnly (withCredentials: true).
+   */
   login(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.baseUrl}/login`, credentials).pipe(
-      // tap: hago algo con la respuesta sin cambiarla; el componente la sigue recibiendo igual
-      tap((response) => {
-        localStorage.setItem(TOKEN_KEY, response.token);
-        localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
-        localStorage.setItem(USER_KEY, JSON.stringify(response.user));
-        this.currentUser.set(response.user);
-      }),
-    );
+    return this.http
+      .post<LoginResponse>(`${this.baseUrl}/login`, credentials, {
+        // withCredentials: true fa que el navegador accepti i enviï la cookie HttpOnly
+        withCredentials: true,
+      })
+      .pipe(
+        tap((response) => {
+          // Guardem l'access token en memòria (no a localStorage)
+          this.accessToken.set(response.token);
+          // Guardem l'usuari a localStorage per mostrar-lo sense tornar a fer login
+          localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+          this.currentUser.set(response.user);
+        }),
+      );
   }
 
-  /** POST /auth/refresh. Pide un access token nuevo con el refresh token y lo guarda */
+  /** POST /auth/refresh.
+   * El navegador envia automàticament la cookie HttpOnly amb withCredentials.
+   * El servidor llegeix el refresh token de la cookie i retorna un access token nou.
+   */
   refresh(): Observable<string> {
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refreshToken) {
-      return throwError(() => new Error('No hay refresh token'));
-    }
-
-    return this.http.post<RefreshResponse>(`${this.baseUrl}/refresh`, { refreshToken }).pipe(
-      tap((response) => localStorage.setItem(TOKEN_KEY, response.token)),
-      // map: de la respuesta { token } me quedo solo con el texto del token
-      map((response) => response.token),
-    );
+    return this.http
+      .post<RefreshResponse>(
+        `${this.baseUrl}/refresh`,
+        {},
+        { withCredentials: true },
+      )
+      .pipe(
+        tap((response) => {
+          // Actualitzem l'access token en memòria amb el nou
+          this.accessToken.set(response.token);
+        }),
+        map((response) => response.token),
+      );
   }
 
-  /** Cierra la sesión: borra lo guardado y lleva al login */
+  /** POST /auth/logout.
+   * El servidor esborra la cookie del refresh token.
+   * Nosaltres esborrerem l'access token de memòria i l'usuari de localStorage.
+   */
   logout(): void {
-    // Los tokens no se guardan en el servidor, así que cerrar sesión es olvidarlos aquí
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    // Demanem al servidor que esborri la cookie (withCredentials perquè l'enviï)
+    this.http
+      .post(`${this.baseUrl}/logout`, {}, { withCredentials: true })
+      .subscribe({ error: () => {} }); // ignorar errors de xarxa al tancar sessió
+
+    // Netegem l'estat local
+    this.accessToken.set(null);
     localStorage.removeItem(USER_KEY);
     this.currentUser.set(null);
     this.router.navigate(['/login']);
   }
 
-  /** El access token guardado, o null si no hay sesión. Lo usa el interceptor */
+  /** L'access token en memòria. L'usa l'interceptor per afegir la capçalera Authorization. */
   getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return this.accessToken();
   }
 }

@@ -31,7 +31,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
-  refreshToken: string;
+  // El refresh token ja NO ve al JSON: el servidor el posa en una cookie HttpOnly
   user: User;
 }
 

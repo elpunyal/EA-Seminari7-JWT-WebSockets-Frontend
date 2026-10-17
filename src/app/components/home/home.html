@@ -3,6 +3,12 @@
   <h1>Hola, {{ user.name }}</h1>
   <p class="muted">Has iniciado sesión como {{ user.email }} con el rol {{ user.role }}.</p>
 
+  <!-- Comptador d'usuaris connectats en temps real (WebSocket) -->
+  <p>
+    🟢 <strong>{{ usersCount() }}</strong>
+    {{ usersCount() === 1 ? 'usuari connectat' : 'usuaris connectats' }} en temps real
+  </p>
+
   <p>Puedes hablar con el resto de usuarios en el chat: general, de grupo o directo.</p>
   <div class="form-actions">
     <a class="button" routerLink="/chat">Ir al chat</a>

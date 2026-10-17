@@ -19,10 +19,11 @@ function withToken(request: HttpRequest<unknown>, token: string): HttpRequest<un
 //   2. Si la API responde 401 porque el token ha caducado, pide uno nuevo con el refresh token
 //      y repite la petición. Si no se puede renovar, cierra la sesión (lleva al login).
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  // Las rutas de /auth no llevan token: login y register son públicas y refresh manda el suyo
-  // en el body. Además, así un 401 del login (contraseña mala) no cierra ninguna sesión.
+  // Les rutes de /auth no porten access token a la capçalera: són públiques.
+  // Però sí que necessiten withCredentials perquè el navegador enviï i accepti
+  // la cookie HttpOnly del refresh token automàticament.
   if (request.url.startsWith(`${environment.apiUrl}/auth/`)) {
-    return next(request);
+    return next(request.clone({ withCredentials: true }));
   }
 
   const auth = inject(AuthService);
@@ -38,12 +39,12 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
       // 401 porque el token ha caducado: lo renuevo y repito la petición original una vez
       if (error.error?.message === TOKEN_EXPIRED) {
         return auth.refresh().pipe(
-          // Si el refresh falla (el refresh token también ha caducado), cierro la sesión
+          // Si el refresh falla (la cookie del refresh token ha caducado), cerramos la sesión
           catchError((refreshError) => {
             auth.logout();
             return throwError(() => refreshError);
           }),
-          // switchMap: cuando llega el token nuevo, lanzo otra vez la petición con él
+          // switchMap: cuando llega el token nuevo, lanzamos otra vez la petición con él
           switchMap((newToken) => next(withToken(request, newToken))),
         );
       }
