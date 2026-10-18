@@ -1,5 +1,7 @@
 # Seminari 7: frontend Angular con JWT y WebSockets
 
+video explicatiu: https://drive.google.com/file/d/1d18lCJ412mAmwMiiSlBwGFa1cbYnMnGl/view?usp=drive_link
+
 Backoffice en Angular para gestionar **autores** y **libros**: desde aquí se pueden listar, buscar,
 crear, editar y borrar. Para entrar hay que iniciar sesión, y el backoffice es solo para
 administradores. Es el frontend del Seminario 7 de EA:
