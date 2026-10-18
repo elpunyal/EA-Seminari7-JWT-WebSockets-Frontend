@@ -1,9 +1,9 @@
 # LOG
 Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha fet i quins prompts d'IA s'han fet servir per fer-ho.
 
-## Eina i model d'IA utilitzat
-- **Eina**: Google Gemini
-- **Model**: Gemini 3.6 Flash
+## Eines i models d'IA utilitzats
+- **Google Gemini**: Model Gemini 3.6 Flash.
+- **Copilot de VS Code**: Utilitzat per generar els comentaris necessaris al codi.
 
 ## Registre d'usos de la IA
 
