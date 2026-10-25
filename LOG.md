@@ -11,11 +11,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com puc configurar Express perquè enviï el refresh token dins d'una cookie HttpOnly segura en comptes de retornar-lo al JSON?"
 
-**Resposta de la IA:** Va explicar com utilitzar `res.cookie('refreshToken', token, { httpOnly: true, sameSite: 'strict', path: '/auth', maxAge: 7 * 24 * 60 * 60 * 1000 })` abans de retornar l'access token i l'usuari en el cos de la resposta.
+**Resposta de la IA:** Va donar un exemple configurant `res.cookie('refreshToken', token, { httpOnly: true, sameSite: 'strict', path: '/auth', maxAge: 7 * 24 * 60 * 60 * 1000 })` abans de retornar l'access token i l'usuari al JSON.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** Cap incoherència detectada. La resposta era correcta i donava la sintaxi vàlida per configurar la cookie HttpOnly a Express.
 
-**Solució/adaptació manual:** Es va adaptar al controlador `Auth.ts` creant una constant d'opcions (`cookieOptions`) i retornant exclusivament `{ token, user }` a la resposta JSON.
+**Solució/adaptació manual:** Vam adaptar el codi a `src/controllers/Auth.ts` creant la funció `parseDurationMs()` per sincronitzar el `maxAge` amb el `.env`, vam afegir `secure: process.env.NODE_ENV === 'production'` i vam definir `cookieOptions` amb `sameSite: 'strict' as const`.
 
 ---
 
@@ -23,11 +23,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Per què req.cookies surt undefined a Express quan intento llegir la cookie de refresh token?"
 
-**Resposta de la IA:** Va indicar que Express no parseja cookies de manera nativa i que cal instal·lar la llibreria `cookie-parser` i registrar-la com a middleware global amb `app.use(cookieParser())`.
+**Resposta de la IA:** Va dir que Express no parseja cookies sol i que calia instal·lar `cookie-parser` i afegir `app.use(cookieParser())`.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** No va avisar que a TypeScript cal instal·lar també `@types/cookie-parser` (donava error `TS7016`), ni va recordar que el middleware s'ha de registrar abans de les rutes perquè `req.cookies` estigui disponible al controlador.
 
-**Solució/adaptació manual:** Es va instal·lar `cookie-parser` juntament amb `@types/cookie-parser` i es va afegir `router.use(cookieParser())` a `server.ts` abans de les rutes.
+**Solució/adaptació manual:** Vam instal·lar `cookie-parser` i `@types/cookie-parser`, i vam posar `router.use(cookieParser())` a `server.ts` just abans de declarar les rutes.
 
 ---
 
@@ -35,11 +35,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com puc esborrar una cookie HttpOnly des del backend d'Express quan l'usuari fa logout?"
 
-**Resposta de la IA:** Va suggerir fer una crida senzilla a `res.clearCookie('refreshToken')` dins del controlador de la ruta de logout.
+**Resposta de la IA:** Va suggerir cridar `res.clearCookie('refreshToken')` dins de la ruta de logout.
 
-**Incoherències detectades:** La IA no va tenir en compte que si la cookie s'havia definit amb una ruta específica (`path: '/auth'`) i amb l'atribut `sameSite: 'strict'`, cal passar exactament les mateixes opcions a `res.clearCookie()`; si no es passen, el navegador ignora la petició d'esborrat i la cookie es manté activa.
+**Incoherències detectades:** No va tenir en compte que si la cookie s'ha creat amb `path: '/auth'`, cal passar aquest mateix `path` a `res.clearCookie()`. Com que Express per defecte posa `path: '/'`, el navegador no troba la cookie a l'arrel i no l'esborra de `/auth`, deixant la sessió oberta.
 
-**Solució/adaptació manual:** Es va configurar `res.clearCookie(REFRESH_COOKIE, { path: '/auth', sameSite: 'strict', httpOnly: true })` assegurant que el navegador l'elimina correctament en tancar sessió.
+**Solució/adaptació manual:** Vam passar `{ path: '/auth', sameSite: 'strict', httpOnly: true }` a `res.clearCookie()` a `Auth.ts` perquè s'esborri de veritat.
 
 ---
 
@@ -47,11 +47,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Què cal configurar a CORS a Express perquè el navegador permeti rebre i enviar cookies des d'Angular?"
 
-**Resposta de la IA:** Va explicar que s'ha d'activar l'opció `credentials: true` a la configuració del middleware CORS perquè retorni la capçalera `Access-Control-Allow-Credentials: true`.
+**Resposta de la IA:** Va explicar que s'ha d'activar l'opció `credentials: true` a la configuració del middleware CORS.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** Va proposar `credentials: true` mantenint el comodí `origin: '*'`. El navegador bloqueja directament les peticions amb credencials si l'origen és `*`; és obligatori posar la URL exacta del client.
 
-**Solució/adaptació manual:** Es va actualitzar el middleware a `src/middleware/Cors.ts` afegint `credentials: true`.
+**Solució/adaptació manual:** Vam configurar `src/middleware/Cors.ts` amb `origin: config.cors.origin` (l'origen del frontend del `.env`), `credentials: true`, i vam aprofitar per declarar els mètodes i capçaleres permeses.
 
 ---
 
@@ -59,11 +59,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com puc guardar l'access token només en memòria a Angular amb Signals en lloc d'utilitzar localStorage?"
 
-**Resposta de la IA:** Va mostrar com crear una `signal<string | null>(null)` privada dins del servei d'autenticació i exposar mètodes per obtenir el valor actual i actualitzar-lo quan es fa login o refresh.
+**Resposta de la IA:** Va ensenyar com crear una signal mutable al servei d'autenticació per guardar el token en fer login i anar-lo actualitzant.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** No va preveure que en recarregar la pàgina (F5) la memòria es neteja i el token torna a ser `null` sense cap mecanisme de *silent refresh* amb la cookie per recuperar la sessió. A més, deixava la signal pública i mutable trencant l'encapsulació, i no separava les dades d'usuari per saber el rol o el nom abans de renovar el token.
 
-**Solució/adaptació manual:** Es va reescriure `auth.service.ts` eliminant la persistència de l'access token a `localStorage` i substituint-la per la signal reactiva en memòria.
+**Solució/adaptació manual:** Vam deixar la signal de l'access token privada, vam guardar les dades de l'usuari a `localStorage` exposades amb `asReadonly()` i `computed`, i vam vincular el refresc automàtic a l'interceptor amb el mètode `refresh()`.
 
 ---
 
@@ -71,11 +71,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com configuro un HttpInterceptor a Angular per afegir withCredentials només a les peticions d'autenticació?"
 
-**Resposta de la IA:** Va proporcionar el codi d'un interceptor funcional utilitzant `request.clone({ withCredentials: true })` per a les rutes que continguin `/auth`.
+**Resposta de la IA:** Va donar un interceptor que feia servir `request.url.includes('auth')` per afegir `request.clone({ withCredentials: true })`.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** Usar `includes('auth')` també coincidia amb `/authors`, traient-li el token Bearer i trencant el CRUD d'autors amb errors 401. A més, si la petició a `/auth/refresh` fallava amb 401, podia generar un bucle infinit de refrescos si no s'excloïen les rutes d'auth del reintent.
 
-**Solució/adaptació manual:** Es va adaptar `auth.interceptor.ts` clonant la petició amb `withCredentials: true` en les rutes d'autenticació, garantint que el navegador enviï i rebi la cookie del refresh token automàticament.
+**Solució/adaptació manual:** Vam canviar la comprovació a `request.url.startsWith('${environment.apiUrl}/auth/')` per no tocar `/authors`, fent que les rutes d'auth surtin directament sense passar pel bloc de reintent per evitar bucles.
 
 ---
 
@@ -83,11 +83,11 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com puc implementar un comptador d'usuaris connectats en temps real amb Socket.IO en un namespace independent?"
 
-**Resposta de la IA:** Va explicar com definir el namespace `/comptador` i fer servir `nsp.sockets.size` per emetre l'esdeveniment `users:count` a tots els clients tant a l'esdeveniment `connection` com a `disconnect`.
+**Resposta de la IA:** Va explicar com crear el namespace `/comptador` i usar `nsp.sockets.size` per emetre `users:count` a la connexió i desconnexió.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** `nsp.sockets.size` compta connexions obertes i no usuaris reals (dues pestanyes del mateix usuari sumen dos). A més, no va posar cap middleware JWT per autenticar el socket i va oblidar configurar el CORS al servidor de Socket.IO.
 
-**Solució/adaptació manual:** Es va crear el fitxer `ComptadorUsuaris.ts` i es va vincular al servidor HTTP a `server.ts`.
+**Solució/adaptació manual:** Vam crear `ComptadorUsuaris.ts` afegint el middleware `VerifySocketToken`, vam configurar el CORS amb l'origen del frontend i vam emetre `users:count` en connectar i desconnectar.
 
 ---
 
@@ -95,8 +95,8 @@ Aquest document és la bitàcola del projecte: serveix per registrar el que s'ha
 **Prompt literal:**
 "Com puc connectar un component d'Angular al comptador de Socket.IO i mostrar el valor actualitzat a la plantilla?"
 
-**Resposta de la IA:** Va mostrar la creació d'un servei amb una signal `usersCount = signal<number>(0)` que escolta l'esdeveniment del socket i com injectar-lo al component per mostrar-lo directament al template HTML.
+**Resposta de la IA:** Va mostrar com crear un servei amb una signal `usersCount` connectada al socket per injectar-la directament al component.
 
-**Incoherències detectades:** Cap incoherència.
+**Incoherències detectades:** No comprovava si ja hi havia un socket obert (`if (this.socket) return;`), duplicant connexions si es tornava a carregar el component. Tampoc enviava el token JWT al handshake (`auth`) i no gestionava `connect_error` (Socket.IO no es reconnecta sol si el rebutja un middleware, cal cridar `connect()` a mà).
 
-**Solució/adaptació manual:** Es va crear `comptador-usuaris.service.ts` i es va afegir al component `home` connectant i desconnectant en els cicles de vida `ngOnInit` i `ngOnDestroy`.
+**Solució/adaptació manual:** Vam configurar el handshake amb el token a `comptador-usuaris.service.ts`, vam escoltar `connect_error` per renovar el token i cridar `this.socket?.connect()`, i vam afegir el mètode `disconnect()` per tancar la connexió netament.
